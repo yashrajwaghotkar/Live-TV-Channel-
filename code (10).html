@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live TV App - Final (No Go Live)</title>
+
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+
+    <style>
+        /* --- Variables & Basic Reset --- */
+        :root {
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            --bg-darkest: #0f0f0f;
+            --bg-dark: #181818;
+            --bg-medium: #212121;
+            --bg-light: #2d2d2d;
+            --text-primary: #f1f1f1;
+            --text-secondary: #aaaaaa;
+            --accent-primary: #4ea8de;
+            --accent-secondary: #3a8bc8;
+            --card-shadow: rgba(0, 0, 0, 0.3);
+            --card-hover-shadow: rgba(0, 0, 0, 0.5);
+            --border-color: #383838;
+            --logo-bg: #ffffff; /* White background for logo consistency */
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body { font-family: var(--font-family); background-color: var(--bg-dark); color: var(--text-primary); display: flex; flex-direction: column; font-size: 15px; }
+
+        /* --- Player Area --- */
+        #player-container {
+            width: 100%; height: 55vh; background-color: var(--bg-darkest);
+            position: relative; flex-shrink: 0; display: flex;
+            justify-content: center; align-items: center;
+        }
+        #video-player { width: 100%; height: 100%; }
+        .video-js { width: 100% !important; height: 100% !important; background-color: var(--bg-darkest); }
+        .video-js .vjs-control-bar { background-color: rgba(30, 30, 30, 0.85); }
+
+        /* --- Overlay Messages --- */
+        .overlay-message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: var(--text-primary); font-weight: 500; background-color: rgba(18, 18, 18, 0.9);
+            padding: 15px 25px; border-radius: 6px; text-align: center; z-index: 10;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            font-size: 1.1em; display: none; max-width: 80%;
+        }
+        #loading-message.visible, #error-message.visible, #info-message.visible { display: block; }
+
+        /* Removed Go Live Button CSS */
+
+        /* --- Category & Grid Area --- */
+        #grid-section-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; background-color: var(--bg-dark); }
+        #category-container { padding: 15px 25px 10px 25px; background-color: var(--bg-dark); border-bottom: 1px solid var(--border-color); flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
+        #category-container::-webkit-scrollbar { height: 4px; } #category-container::-webkit-scrollbar-track { background: transparent; } #category-container::-webkit-scrollbar-thumb { background-color: #444; border-radius: 2px; }
+        .category-button { background-color: transparent; color: var(--text-secondary); border: none; border-bottom: 3px solid transparent; padding: 8px 5px; margin-right: 25px; border-radius: 0; cursor: pointer; font-size: 1.0em; font-weight: 500; transition: color 0.2s ease, border-color 0.2s ease; display: inline-block; text-transform: capitalize; }
+        .category-button:hover { color: var(--text-primary); }
+        .category-button.active { color: var(--text-primary); border-bottom-color: var(--accent-primary); font-weight: 600; }
+
+        /* --- Channel Grid --- */
+        #channel-grid-container { flex-grow: 1; overflow-y: auto; padding: 25px; }
+        #channel-grid-container::-webkit-scrollbar { width: 8px; } #channel-grid-container::-webkit-scrollbar-track { background: var(--bg-dark); } #channel-grid-container::-webkit-scrollbar-thumb { background-color: #4f4f4f; border-radius: 4px; border: 2px solid var(--bg-dark); } #channel-grid-container::-webkit-scrollbar-thumb:hover { background-color: #6a6a6a; }
+        #channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 25px; }
+
+        .channel-item { background-color: var(--bg-medium); border-radius: 8px; cursor: pointer; transition: transform 0.2s ease-out, box-shadow 0.2s ease-out; display: flex; flex-direction: column; align-items: center; box-shadow: 0 2px 5px var(--card-shadow); border: 1px solid var(--border-color); overflow: hidden; padding: 20px 15px 15px 15px; }
+        .channel-item:hover { transform: scale(1.03); box-shadow: 0 6px 12px var(--card-hover-shadow); border-color: #4a4a4a; }
+        .channel-item.active { border-color: var(--accent-primary); box-shadow: 0 0 10px rgba(78, 168, 222, 0.3); }
+
+        .channel-logo-container { width: 70px; height: 70px; border-radius: 50%; background-color: var(--logo-bg); margin: 0 auto 15px auto; overflow: hidden; position: relative; flex-shrink: 0; border: 2px solid var(--bg-light); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .channel-logo { display: block; width: 100%; height: 100%; object-fit: contain; padding: 8px; }
+
+        .channel-name { font-size: 0.95em; font-weight: 500; color: var(--text-primary); line-height: 1.4; width: 100%; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; min-height: calc(1.4em * 2); max-height: calc(1.4em * 2); }
+        .grid-status-message { color: var(--text-secondary); text-align: center; grid-column: 1 / -1; padding: 40px 20px; font-size: 1.05em; }
+
+        /* --- Responsive --- */
+        @media (max-width: 992px) { #channel-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; } }
+        @media (max-width: 768px) { body { font-size: 14px; } #player-container { height: 45vh; } #channel-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 15px; } #channel-grid-container { padding: 20px; } .channel-item { padding: 15px 12px 12px 12px; } .channel-logo-container { width: 60px; height: 60px; margin-bottom: 12px; border-width: 1px;} .channel-logo { padding: 6px; } .channel-name { font-size: 0.9em; min-height: calc(1.35em * 2); max-height: calc(1.35em * 2); } #category-container { padding: 12px 20px 8px 20px; } .category-button { margin-right: 20px; font-size: 0.95em; } }
+        @media (max-width: 480px) { #player-container { height: 40vh; } #channel-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; } #channel-grid-container { padding: 15px; } .channel-item { padding: 12px 10px 10px 10px; } .channel-logo-container { width: 55px; height: 55px; margin-bottom: 10px; } .channel-logo { padding: 5px; } .channel-name { font-size: 0.85em; min-height: calc(1.3em * 2); max-height: calc(1.3em * 2); } .overlay-message { font-size: 1.0em; padding: 12px 20px; } #category-container { padding: 10px 15px 5px 15px; } .category-button { margin-right: 15px; font-size: 0.9em; padding: 6px 3px; } }
+
+    </style>
+</head>
+<body>
+
+    <!-- Player Area (Top) -->
+    <div id="player-container">
+        <video id="video-player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" data-setup='{}'>
+            <p class="vjs-no-js">Please enable JavaScript.</p>
+        </video>
+        <!-- Overlays -->
+        <div id="loading-message" class="overlay-message">Loading...</div>
+        <div id="error-message" class="overlay-message">Error</div>
+        <div id="info-message" class="overlay-message visible">Select a channel below</div>
+        <!-- Removed Go Live Button -->
+    </div>
+
+    <!-- Category & Channel Grid Area -->
+    <div id="grid-section-container">
+        <div id="category-container">
+            <button class="category-button active" data-category="all">All</button>
+            <button class="category-button" data-category="entertainment">Entertainment</button>
+            <button class="category-button" data-category="music">Music</button>
+            <button class="category-button" data-category="news">News</button>
+            <button class="category-button" data-category="kids">Kids</button>
+        </div>
+        <div id="channel-grid-container">
+            <div id="channel-grid"></div>
+        </div>
+    </div>
+
+    <!-- Video.js JS -->
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+
+    <script>
+        // --- Configuration ---
+        const API_KEY = 'AIzaSyD58UUNg5stZuX6VuiB0RIlgBTOtQszDp0'; // Your API Key
+        const SPREADSHEET_ID = '1-ti29bN8ltkZYM0LKPkpPiepalcalM2PH0slbOdwqWQ'; // Your Sheet ID
+        const SHEET_NAME = 'Sheet1';
+        const SHEET_RANGE = `${SHEET_NAME}!A2:G`;
+        const API_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_RANGE}?key=${API_KEY}`;
+
+        // --- DOM Elements ---
+        const channelGridDiv = document.getElementById('channel-grid');
+        const loadingMessage = document.getElementById('loading-message');
+        const errorMessage = document.getElementById('error-message');
+        const infoMessage = document.getElementById('info-message');
+        const categoryContainer = document.getElementById('category-container');
+        const categoryButtons = document.querySelectorAll('.category-button');
+        // Removed goLiveButton reference
+
+        // --- State Variables ---
+        let player;
+        let allChannelsData = [];
+        let currentlyPlayingChannelElement = null;
+        let currentStreamUrl = null; // Still useful for error messages
+        let currentChannelName = null; // Still useful for error messages
+
+        // --- Functions ---
+
+        function showMessage(element, messageText = '', hideOthers = true) {
+            const playerContainer = document.getElementById('player-container');
+            if (!playerContainer) return;
+            const loadingMsg = playerContainer.querySelector('#loading-message');
+            const errorMsg = playerContainer.querySelector('#error-message');
+            const infoMsg = playerContainer.querySelector('#info-message');
+
+            if (hideOthers) {
+                if(loadingMsg) loadingMsg.classList.remove('visible');
+                if(errorMsg) errorMsg.classList.remove('visible');
+                if(infoMsg) infoMsg.classList.remove('visible');
+                // No need to hide go live button
+            }
+            if (element) {
+                const targetElement = playerContainer.querySelector(`#${element.id}`);
+                if (targetElement) {
+                    if (messageText) targetElement.textContent = messageText;
+                    targetElement.classList.add('visible');
+                }
+            }
+        }
+
+        // Removed showGoLiveButton function
+
+        function showGridStatus(message) { channelGridDiv.innerHTML = `<div class="grid-status-message">${message}</div>`; }
+
+        async function fetchChannels() {
+            showMessage(loadingMessage, 'Loading Channels...'); showGridStatus('Loading channels...'); categoryButtons.forEach(btn => btn.disabled = true);
+            try {
+                const response = await fetch(API_URL); if (!response.ok) { let e = `HTTP error! Status: ${response.status}`; try { const j = await response.json(); if(j.error && j.error.message) e += ` - ${j.error.message}`; } catch (_) {} throw new Error(e); }
+                const data = await response.json();
+                if (data.values && data.values.length > 0) {
+                    showMessage(infoMessage, 'Select a channel below'); channelGridDiv.innerHTML = '';
+                    const isTrue = (v) => v?.trim().toUpperCase() === 'TRUE';
+                    allChannelsData = data.values.map((r) => { if (!r || r.length < 2 || !r[0]?.trim() || !r[1]?.trim()) return null; return { name: r[0].trim(), url: r[1].trim(), logo: r[2]?.trim() || '', categories: { entertainment: isTrue(r[3]), music: isTrue(r[4]), news: isTrue(r[5]), kids: isTrue(r[6]), }, element: null }; }).filter(c => c !== null);
+                    if(allChannelsData.length === 0) throw new Error('No valid channel data found.');
+                    categoryButtons.forEach(btn => btn.disabled = false); return allChannelsData;
+                } else { throw new Error('No channels found in sheet.'); }
+            } catch (error) { console.error('Error fetching channels:', error); const t = `Error fetching channels: ${error.message}.`; showMessage(errorMessage, t); showGridStatus(t); allChannelsData = []; categoryButtons.forEach(btn => btn.disabled = true); return null; }
+        }
+
+        function filterChannels(category) { if (category === 'all') return allChannelsData; return allChannelsData.filter(channel => channel.categories[category]); }
+
+        function displayChannels(channelsToDisplay, categoryName = 'Channels') {
+             channelGridDiv.innerHTML = '';
+            if (!channelsToDisplay || channelsToDisplay.length === 0) { showGridStatus(`No channels found for "${categoryName}".`); return; }
+            channelsToDisplay.forEach((channelData) => {
+                const channelItem = document.createElement('div'); channelItem.classList.add('channel-item'); channelItem.dataset.url = channelData.url;
+                const logoContainer = document.createElement('div'); logoContainer.classList.add('channel-logo-container');
+                const logoImg = document.createElement('img'); logoImg.classList.add('channel-logo'); logoImg.src = channelData.logo || `https://via.placeholder.com/70x70/FFF/CCC?text=${encodeURIComponent(channelData.name[0])}`; logoImg.alt = `${channelData.name} Logo`; logoImg.loading = 'lazy'; logoImg.onerror = () => { logoImg.src = `https://via.placeholder.com/70x70/FFF/CCC?text=Err`; }; logoContainer.appendChild(logoImg);
+                const nameSpan = document.createElement('span'); nameSpan.classList.add('channel-name'); nameSpan.textContent = channelData.name;
+                channelItem.appendChild(logoContainer); channelItem.appendChild(nameSpan);
+                channelData.element = channelItem;
+                channelItem.addEventListener('click', () => {
+                    if (channelItem === currentlyPlayingChannelElement) { console.log(`Channel "${channelData.name}" is already selected. No reload.`); return; }
+                    playChannel(channelData.url, channelData.name, channelItem);
+                });
+                if (currentlyPlayingChannelElement && currentlyPlayingChannelElement.dataset.url === channelData.url) { channelItem.classList.add('active'); currentlyPlayingChannelElement = channelItem; }
+                channelGridDiv.appendChild(channelItem);
+            });
+        }
+
+        function playChannel(streamUrl, channelName, selectedItemElement) {
+            if (!player) { console.error("Player not initialized!"); showMessage(errorMessage, "Player error."); return; }
+            console.log(`Attempting to play: ${channelName} - ${streamUrl}`);
+
+            // Update Current Stream Info
+            currentStreamUrl = streamUrl;
+            currentChannelName = channelName;
+            showMessage(infoMessage, `Loading ${channelName}...`); // Show loading message
+
+            let streamType = '';
+            if (streamUrl.toLowerCase().includes('.m3u8')) streamType = 'application/x-mpegURL';
+            else if (streamUrl.toLowerCase().includes('.mpd')) streamType = 'application/dash+xml';
+
+            player.src({ src: streamUrl, type: streamType || undefined });
+            player.load();
+            player.play().then(() => {
+                console.log("Playback promise resolved.");
+            }).catch(error => {
+                console.error(`Error initiating playback for ${channelName}:`, error);
+                // Error message shown in 'error' event listener
+            });
+
+            // Update active class styling
+            if (currentlyPlayingChannelElement) { currentlyPlayingChannelElement.classList.remove('active'); }
+            if (selectedItemElement) { selectedItemElement.classList.add('active'); currentlyPlayingChannelElement = selectedItemElement; }
+            else { const foundElement = Array.from(channelGridDiv.querySelectorAll('.channel-item')).find(item => item.dataset.url === streamUrl); if (foundElement) { foundElement.classList.add('active'); currentlyPlayingChannelElement = foundElement; } else { currentlyPlayingChannelElement = null; } }
+        }
+
+        // --- Event Listeners ---
+        categoryButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                categoryButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                const selectedCategory = button.dataset.category;
+                const filteredData = filterChannels(selectedCategory);
+                const categoryDisplayName = button.textContent;
+                displayChannels(filteredData, categoryDisplayName);
+            });
+        });
+
+        // Removed Go Live Button Click Listener
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const videoElement = document.getElementById('video-player');
+            if (videoElement) {
+                 player = videojs(videoElement, { controls: true, liveui: true, html5: { hls: {} } });
+
+                 // Player Event Listeners (Simplified)
+                 player.on('error', function() {
+                     const error = player.error();
+                     console.error('Video Player Error:', error);
+                     let errorMsgText = `Player Error: ${error ? error.message : 'Could not play video.'}`;
+                     if (error && error.code === 4) { errorMsgText = `Cannot play '${currentChannelName || 'stream'}'. Offline or incompatible?`; }
+                     showMessage(errorMessage, errorMsgText); // Show error message directly
+                 });
+
+                 player.on('pause', function() {
+                     console.log('Player paused.');
+                     // No action needed here without Go Live button
+                 });
+
+                 player.on('playing', function() {
+                     console.log('Player is playing.');
+                     showMessage(null); // Hide any overlay messages
+                 });
+
+                 player.on('loadstart', function() {
+                      console.log('Player loadstart event.');
+                      // No action needed here without Go Live button
+                      // Loading message is handled by playChannel
+                 });
+
+                 player.on('waiting', function() {
+                     console.log('Player buffering (waiting)...');
+                     showMessage(infoMessage, 'Buffering...', false); // Show buffering message
+                 });
+
+            } else {
+                console.error("#video-player not found!");
+                showMessage(errorMessage, "Critical Error: Player HTML missing.");
+                showGridStatus("Player failed to load.");
+                categoryButtons.forEach(btn => btn.disabled = true);
+                return;
+            }
+
+            fetchChannels().then(channels => {
+                 if (channels) {
+                    const initialCategoryButton = document.querySelector('.category-button[data-category="all"]');
+                    displayChannels(channels, initialCategoryButton ? initialCategoryButton.textContent : 'All');
+                 }
+            });
+        });
+    </script>
+
+</body>
+</html>
